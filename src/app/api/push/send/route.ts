@@ -5,12 +5,6 @@ import { join } from "path";
 
 const SUBSCRIPTIONS_FILE = join(process.cwd(), ".push-subscriptions.json");
 
-webpush.setVapidDetails(
-  process.env.VAPID_MAILTO || "mailto:admin@vivifresh.local",
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "",
-  process.env.VAPID_PRIVATE_KEY || ""
-);
-
 interface PushSubscriptionData {
   endpoint: string;
   p256dh: string;
@@ -36,6 +30,22 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    const privateKey = process.env.VAPID_PRIVATE_KEY;
+
+    if (!publicKey || !privateKey) {
+      return NextResponse.json(
+        { error: "VAPID keys are not configured" },
+        { status: 500 }
+      );
+    }
+
+    webpush.setVapidDetails(
+      process.env.VAPID_MAILTO || "mailto:admin@vivifresh.local",
+      publicKey,
+      privateKey
+    );
+
     const { title, body, url = "/dashboard" } = await request.json();
 
     const subscriptions = readSubscriptions();
