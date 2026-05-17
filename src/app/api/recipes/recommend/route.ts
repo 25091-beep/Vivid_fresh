@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export interface RecommendedRecipe {
   id: string;
@@ -15,9 +14,9 @@ export interface RecommendedRecipe {
 
 export async function POST(request: NextRequest) {
   try {
-    const { ingredients, expiringIngredients } = await request.json();
+    const { ingredients, expiringIngredients = [] } = await request.json();
 
-    if (!ingredients || ingredients.length === 0) {
+    if (!Array.isArray(ingredients) || ingredients.length === 0) {
       return NextResponse.json({ error: "재료가 없습니다" }, { status: 400 });
     }
 
@@ -26,18 +25,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ recipes: getMockRecipes(ingredients, expiringIngredients) });
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        maxOutputTokens: 4000,
-      },
-    });
-
     const ingredientList = ingredients.join(", ");
     const expiringList =
-      expiringIngredients?.length > 0
+      expiringIngredients.length > 0
         ? `\n🚨 유통기한 임박 재료 (최우선 소진 필요): ${expiringIngredients.join(", ")}`
         : "";
 
@@ -87,17 +77,76 @@ ${PANTRY_STAPLES.join(", ")}
 - 레시피 id는 고유 (r1, r2, r3)
 - steps는 최소 3단계 이상, 구체적으로 작성`;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            responseMimeType: "application/json",
+            maxOutputTokens: 4000,
+          },
+        }),
+      }
+    );
+
+    if (!geminiResponse.ok) {
+      const errorBody = await geminiResponse.text();
+      console.error("Gemini recipe API error:", errorBody);
+      return NextResponse.json(
+        { error: "Gemini API 호출 실패", detail: getReadableGeminiError(errorBody) },
+        { status: 502 }
+      );
+    }
+
+    const result = await geminiResponse.json();
+    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+      console.error("Gemini recipe API empty response:", result);
+      return NextResponse.json({ error: "Gemini 응답이 비어있습니다" }, { status: 502 });
+    }
 
     // JSON 파싱 - 마크다운 코드블록 제거
-    const jsonText = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const jsonText = extractJsonText(text);
     const parsed = JSON.parse(jsonText);
+
+    if (!Array.isArray(parsed.recipes) || parsed.recipes.length === 0) {
+      return NextResponse.json({ error: "추천 레시피 형식이 올바르지 않습니다" }, { status: 502 });
+    }
 
     return NextResponse.json(parsed);
   } catch (err) {
     console.error("Recipe recommend error:", err);
     return NextResponse.json({ error: "레시피 추천 실패" }, { status: 500 });
+  }
+}
+
+function extractJsonText(text: string): string {
+  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+
+  if (firstBrace === -1 || lastBrace === -1) {
+    return cleaned;
+  }
+
+  return cleaned.slice(firstBrace, lastBrace + 1);
+}
+
+function getReadableGeminiError(errorBody: string): string {
+  try {
+    const parsed = JSON.parse(errorBody);
+    return parsed.error?.message ?? "Gemini API 설정을 확인해주세요";
+  } catch {
+    return "Gemini API 설정을 확인해주세요";
   }
 }
 

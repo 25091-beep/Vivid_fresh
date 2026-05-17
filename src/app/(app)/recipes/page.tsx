@@ -37,6 +37,7 @@ export default function RecipesPage() {
   const [aiRecipes, setAiRecipes] = useState<RecommendedRecipe[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiCalled, setAiCalled] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const ingredients = useIngredientStore((s) => s.ingredients);
   const getMatchingRecipes = useRecipeStore((s) => s.getMatchingRecipes);
@@ -56,6 +57,8 @@ export default function RecipesPage() {
       return;
     }
     setAiLoading(true);
+    setAiCalled(true);
+    setAiError(null);
     try {
       const res = await fetch("/api/recipes/recommend", {
         method: "POST",
@@ -66,14 +69,25 @@ export default function RecipesPage() {
         }),
       });
       const data = await res.json();
-      if (data.recipes) {
+
+      if (!res.ok) {
+        const message = data.detail || data.error || "레시피 추천에 실패했어요";
+        setAiError(message);
+        toast.error(message);
+        return;
+      }
+
+      if (Array.isArray(data.recipes) && data.recipes.length > 0) {
         setAiRecipes(data.recipes);
-        setAiCalled(true);
       } else {
-        toast.error("레시피 추천에 실패했어요");
+        const message = "AI가 추천 레시피를 만들지 못했어요";
+        setAiError(message);
+        toast.error(message);
       }
     } catch {
-      toast.error("네트워크 오류가 발생했어요");
+      const message = "네트워크 오류가 발생했어요";
+      setAiError(message);
+      toast.error(message);
     } finally {
       setAiLoading(false);
     }
@@ -113,7 +127,21 @@ export default function RecipesPage() {
 
         {/* AI 추천 탭 */}
         <TabsContent value="ai" className="mt-4 space-y-3">
-          {!aiCalled ? (
+          {aiLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="p-4 space-y-3">
+                  <Skeleton className="h-5 w-2/3" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-4/5" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-6 w-16 rounded-full" />
+                    <Skeleton className="h-6 w-16 rounded-full" />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : !aiCalled ? (
             <div className="space-y-4">
               {/* 냉장고 재료 현황 */}
               {ingredients.length === 0 ? (
@@ -170,20 +198,19 @@ export default function RecipesPage() {
                 </Button>
               </div>
             </div>
-          ) : aiLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <Card key={i} className="p-4 space-y-3">
-                  <Skeleton className="h-5 w-2/3" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-4/5" />
-                  <div className="flex gap-2">
-                    <Skeleton className="h-6 w-16 rounded-full" />
-                    <Skeleton className="h-6 w-16 rounded-full" />
-                  </div>
-                </Card>
-              ))}
-            </div>
+          ) : aiError ? (
+            <Card className="p-5 text-center space-y-3 border-red-100 bg-red-50">
+              <p className="font-semibold text-red-700">AI 추천을 가져오지 못했어요</p>
+              <p className="text-sm text-red-500">{aiError}</p>
+              <Button
+                onClick={fetchAiRecipes}
+                disabled={aiLoading}
+                className="bg-amber-500 hover:bg-amber-600 gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                다시 추천받기
+              </Button>
+            </Card>
           ) : (
             <>
               {/* 기준 재료 표시 */}
