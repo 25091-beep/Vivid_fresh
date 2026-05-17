@@ -63,11 +63,13 @@ export default function GroupsPage() {
       {/* Actions */}
       <div className="grid grid-cols-2 gap-3">
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="h-16 flex-col gap-1 border-green-200 hover:bg-green-50">
-              <Plus className="w-5 h-5 text-green-600" />
-              <span className="text-sm">{t("create")}</span>
-            </Button>
+          <DialogTrigger
+            render={
+              <Button variant="outline" className="h-16 flex-col gap-1 border-green-200 hover:bg-green-50" />
+            }
+          >
+            <Plus className="w-5 h-5 text-green-600" />
+            <span className="text-sm">{t("create")}</span>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -91,11 +93,13 @@ export default function GroupsPage() {
         </Dialog>
 
         <Dialog open={joinOpen} onOpenChange={setJoinOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="h-16 flex-col gap-1 border-blue-200 hover:bg-blue-50">
-              <UserPlus className="w-5 h-5 text-blue-600" />
-              <span className="text-sm">{t("join")}</span>
-            </Button>
+          <DialogTrigger
+            render={
+              <Button variant="outline" className="h-16 flex-col gap-1 border-blue-200 hover:bg-blue-50" />
+            }
+          >
+            <UserPlus className="w-5 h-5 text-blue-600" />
+            <span className="text-sm">{t("join")}</span>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>

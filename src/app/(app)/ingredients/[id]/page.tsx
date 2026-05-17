@@ -96,10 +96,12 @@ export default function IngredientDetailPage() {
             <Pencil className="w-4 h-4" />
           </Button>
           <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600">
-                <Trash2 className="w-4 h-4" />
-              </Button>
+            <DialogTrigger
+              render={
+                <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" />
+              }
+            >
+              <Trash2 className="w-4 h-4" />
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
