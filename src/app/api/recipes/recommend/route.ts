@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export interface RecommendedRecipe {
   id: string;
   title: string;
@@ -99,11 +102,14 @@ ${PANTRY_STAPLES.join(", ")}
 
     if (!geminiResponse.ok) {
       const errorBody = await geminiResponse.text();
+      const detail = getReadableGeminiError(errorBody);
       console.error("Gemini recipe API error:", errorBody);
-      return NextResponse.json(
-        { error: "Gemini API 호출 실패", detail: getReadableGeminiError(errorBody) },
-        { status: 502 }
-      );
+
+      return NextResponse.json({
+        recipes: getMockRecipes(ingredients, expiringIngredients),
+        warning: `Gemini API 호출 실패: ${detail}`,
+        source: "fallback",
+      });
     }
 
     const result = await geminiResponse.json();
@@ -111,21 +117,37 @@ ${PANTRY_STAPLES.join(", ")}
 
     if (!text) {
       console.error("Gemini recipe API empty response:", result);
-      return NextResponse.json({ error: "Gemini 응답이 비어있습니다" }, { status: 502 });
+      return NextResponse.json({
+        recipes: getMockRecipes(ingredients, expiringIngredients),
+        warning: "Gemini 응답이 비어있어 기본 추천을 표시합니다",
+        source: "fallback",
+      });
     }
 
-    // JSON 파싱 - 마크다운 코드블록 제거
-    const jsonText = extractJsonText(text);
-    const parsed = JSON.parse(jsonText);
+    try {
+      // JSON 파싱 - 마크다운 코드블록 제거
+      const jsonText = extractJsonText(text);
+      const parsed = JSON.parse(jsonText);
 
-    if (!Array.isArray(parsed.recipes) || parsed.recipes.length === 0) {
-      return NextResponse.json({ error: "추천 레시피 형식이 올바르지 않습니다" }, { status: 502 });
+      if (!Array.isArray(parsed.recipes) || parsed.recipes.length === 0) {
+        throw new Error("Invalid recipe response shape");
+      }
+
+      return NextResponse.json({ ...parsed, source: "gemini" });
+    } catch (parseError) {
+      console.error("Gemini recipe parse error:", parseError, text);
+      return NextResponse.json({
+        recipes: getMockRecipes(ingredients, expiringIngredients),
+        warning: "Gemini 응답 형식이 맞지 않아 기본 추천을 표시합니다",
+        source: "fallback",
+      });
     }
-
-    return NextResponse.json(parsed);
   } catch (err) {
     console.error("Recipe recommend error:", err);
-    return NextResponse.json({ error: "레시피 추천 실패" }, { status: 500 });
+    return NextResponse.json(
+      { error: "레시피 추천 실패", detail: err instanceof Error ? err.message : "알 수 없는 오류" },
+      { status: 500 }
+    );
   }
 }
 

@@ -79,6 +79,9 @@ export default function RecipesPage() {
 
       if (Array.isArray(data.recipes) && data.recipes.length > 0) {
         setAiRecipes(data.recipes);
+        if (data.warning) {
+          toast.warning(data.warning);
+        }
       } else {
         const message = "AI가 추천 레시피를 만들지 못했어요";
         setAiError(message);
